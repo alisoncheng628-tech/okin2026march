@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>沖繩深度遊 2026</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .active-tab { color: #2563eb; border-top: 3px solid #2563eb; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .card-shadow { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); }
+        input:focus { outline: none; border-bottom: 2px solid #2563eb; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 antialiased">
+
+<div id="app" class="max-w-md mx-auto min-h-screen pb-24 relative shadow-2xl bg-white flex flex-col">
+    
+    <header class="bg-blue-600 text-white p-6 rounded-b-[2rem] shadow-lg">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold italic">Okinawa 2026</h1>
+                <p class="text-blue-100 text-sm">6日家族深度遊 | 恩納村住宿</p>
+            </div>
+            <div class="text-right">
+                <p class="text-xs opacity-80 text-white">總支出預算</p>
+                <p class="text-xl font-black text-yellow-300">¥ {{ formatNumber(totalExpense) }}</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="p-4 flex-grow">
+        <div v-if="activeTab === 'itinerary'" class="space-y-4">
+            <div class="flex gap-2 overflow-x-auto hide-scrollbar py-2">
+                <button v-for="n in 6" :key="n" @click="currentDay = n"
+                    :class="currentDay === n ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-100 text-slate-500'"
+                    class="px-4 py-2 rounded-xl text-sm font-bold flex-shrink-0 transition-all">
+                    Day {{n}}
+                </button>
+            </div>
+
+            <div class="flex justify-between items-center px-1">
+                <h2 class="font-bold text-slate-800 text-lg">每日行程列表</h2>
+                <button @click="addStep" class="text-blue-600 text-sm font-bold">+ 新增行程</button>
+            </div>
+
+            <div class="space-y-4">
+                <div v-for="(item, idx) in sortedItinerary" :key="item.id" 
+                     class="bg-white p-4 rounded-2xl border border-slate-100 card-shadow group relative">
+                    
+                    <div class="flex justify-between items-start mb-2">
+                        <input type="time" v-model="item.time" class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] text-slate-400">¥</span>
+                            <input type="number" v-model.number="item.cost" class="w-20 text-right text-xs font-bold text-orange-600" placeholder="花費">
+                            <button @click="deleteStep(item.id)" class="text-slate-300 hover:text-red-400 transition ml-2">
+                                <i class="fas fa-times-circle"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <input type="text" v-model="item.title" class="font-bold text-lg w-full mb-1" placeholder="景點名稱">
+                    <textarea v-model="item.desc" class="text-sm text-slate-500 w-full resize-none" rows="2" placeholder="行程描述"></textarea>
+                    
+                    <div class="mt-3 flex gap-2 items-center">
+                        <a :href="'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(item.title)" 
+                           target="_blank" class="text-[10px] bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-blue-100 transition">
+                            <i class="fas fa-map-marked-alt"></i> 地圖搜尋
+                        </a>
+                        <input type="text" v-model="item.tips" class="text-[10px] flex-grow bg-yellow-50 text-yellow-700 p-1.5 rounded-lg italic" placeholder="💡 小撇步/筆記...">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="activeTab === 'map'" class="space-y-4">
+            <h2 class="font-bold text-lg">快速導航</h2>
+            <div v-for="loc in locations" class="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 card-shadow">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
+                        <i :class="loc.icon"></i>
+                    </div>
+                    <span class="font-bold">{{loc.name}}</span>
+                </div>
+                <a :href="'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(loc.name)" target="_blank" class="text-blue-500 text-sm">導航 <i class="fas fa-chevron-right"></i></a>
+            </div>
+        </div>
+
+        <div v-if="activeTab === 'finance'" class="space-y-4">
+            <h2 class="font-bold text-lg">開銷彙總</h2>
+            <div class="bg-blue-900 text-white p-6 rounded-3xl shadow-inner relative overflow-hidden">
+                <p class="text-blue-200 text-sm mb-1">預估總支出</p>
+                <p class="text-3xl font-black tracking-tighter">¥ {{ formatNumber(totalExpense) }}</p>
+                <div class="absolute -right-4 -bottom-4 text-white opacity-10 text-7xl">
+                    <i class="fas fa-wallet"></i>
+                </div>
+            </div>
+            <div class="space-y-2">
+                <div v-for="day in 6" class="flex justify-between p-3 border-b border-slate-50">
+                    <span class="text-slate-500">Day {{day}} 支出</span>
+                    <span class="font-bold text-slate-700">¥ {{ formatNumber(getDayTotal(day)) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="activeTab === 'parking'" class="space-y-4">
+            <h2 class="font-bold text-lg">泊車筆記</h2>
+            <div v-for="p in parkingInfo" class="p-4 bg-white rounded-2xl border border-slate-100 card-shadow">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="font-bold">{{p.place}}</span>
+                    <span class="text-xs font-bold text-blue-600 px-2 py-0.5 bg-blue-50 rounded">{{p.fee}}</span>
+                </div>
+                <p class="text-xs text-slate-400 italic">{{p.status}}</p>
+            </div>
+        </div>
+
+    </main>
+
+    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-slate-100 px-4 py-3 flex justify-between items-center z-50">
+        <button v-for="t in tabs" @click="activeTab = t.id" :class="activeTab === t.id ? 'active-tab' : 'text-slate-400'" class="flex flex-col items-center flex-1 transition-all pt-2">
+            <i :class="t.icon" class="text-xl"></i>
+            <span class="text-[10px] mt-1 font-bold">{{t.name}}</span>
+        </button>
+    </nav>
+</div>
+
+<script>
+const { createApp, ref, computed, watch } = Vue;
+
+createApp({
+    setup() {
+        const activeTab = ref('itinerary');
+        const currentDay = ref(1);
+
+        // 初始化行程數據
+        const rawItinerary = [
+            // Day 1
+            { day: 1, time: '10:30', title: '那霸機場取車', desc: '辦理入境與8人座大車取車。', cost: 15000, tips: '確認保險細節', id: 1 },
+            { day: 1, time: '12:00', title: '泊港魚市場', desc: '午餐：新鮮刺身與海鮮。', cost: 8000, tips: '生蠔必吃', id: 2 },
+            { day: 1, time: '14:30', title: '瀨長島 Umikaji', desc: '下午茶與看飛機。', cost: 4000, tips: '氾濫漢堡', id: 3 },
+            { day: 1, time: '19:00', title: '琉球之牛 (恩納店)', desc: '晚餐：燒肉饗宴。', cost: 50000, tips: '務必預約', id: 4 },
+            // Day 2
+            { day: 2, time: '10:00', title: '玉泉洞', desc: '鐘乳石洞探索。', cost: 12000, tips: '穿好走的鞋', id: 5 },
+            { day: 2, time: '12:30', title: '屋宜家', desc: '午餐：豆乳蕎麥麵。', cost: 7000, tips: '古民家風情', id: 6 },
+            { day: 2, time: '15:30', title: '新都心商圈', desc: '購物與採買。', cost: 10000, tips: 'Apple Store也在這', id: 7 },
+            // Day 3
+            { day: 3, time: '09:30', title: '山原高山索道', desc: '俯瞰森林美景。', cost: 9000, tips: '早點去人較少', id: 8 },
+            { day: 3, time: '11:30', title: 'JUNGLIA 叢林樂園', desc: '全日冒險。', cost: 60000, tips: '電子門票存好', id: 9 },
+            { day: 3, time: '19:00', title: '百年古家 大家', desc: '晚餐：阿古豬火鍋。', cost: 25000, id: 10 },
+            // Day 4
+            { day: 4, time: '09:30', title: '美麗海水族館', desc: '黑潮之海餵食秀。', cost: 15000, id: 11 },
+            { day: 4, time: '13:00', title: '花人逢', desc: '午餐：手工披薩。', cost: 6000, id: 12 },
+            { day: 4, time: '15:30', title: '備瀨福木林道', desc: '租協力車。', cost: 3000, id: 13 },
+            // Day 5
+            { day: 5, time: '10:30', title: '港川外人住宅', desc: '拍全家福與水果塔。', cost: 5000, id: 14 },
+            { day: 5, time: '13:00', title: 'PARCO CITY', desc: '購物馬拉松與午餐。', cost: 20000, id: 15 },
+            { day: 5, time: '18:00', title: '美國村', desc: '看夕陽與晚餐。', cost: 15000, id: 16 },
+            // Day 6
+            { day: 6, time: '11:00', title: '波上宮', desc: '參拜祈福。', cost: 2000, id: 17 },
+            { day: 6, time: '12:30', title: '國際通', desc: '最後補貨。', cost: 10000, id: 18 }
+        ];
+
+        const itinerary = ref(JSON.parse(localStorage.getItem('ok_itinerary')) || rawItinerary);
+
+        // 自動排序與過濾當天行程
+        const sortedItinerary = computed(() => {
+            return itinerary.value
+                .filter(item => item.day === currentDay.value)
+                .sort((a, b) => a.time.localeCompare(b.time));
+        });
+
+        // 監聽數據變化並存入本地存儲
+        watch(itinerary, (newVal) => {
+            localStorage.setItem('ok_itinerary', JSON.stringify(newVal));
+        }, { deep: true });
+
+        const totalExpense = computed(() => itinerary.value.reduce((sum, item) => sum + (Number(item.cost) || 0), 0));
+        const getDayTotal = (day) => itinerary.value.filter(i => i.day === day).reduce((sum, i) => sum + (Number(i.cost) || 0), 0);
+
+        const addStep = () => {
+            const newId = itinerary.value.length ? Math.max(...itinerary.value.map(i => i.id)) + 1 : 1;
+            itinerary.value.push({
+                day: currentDay.value,
+                time: '12:00',
+                title: '新景點',
+                desc: '點擊編輯描述',
+                cost: 0,
+                tips: '',
+                id: newId
+            });
+        };
+
+        const deleteStep = (id) => {
+            if(confirm('確定要刪除此行程嗎？')) {
+                itinerary.value = itinerary.value.filter(i => i.id !== id);
+            }
+        };
+
+        const formatNumber = (num) => new Intl.NumberFormat().format(num);
+
+        return {
+            activeTab, currentDay, itinerary, sortedItinerary, totalExpense,
+            getDayTotal, addStep, deleteStep, formatNumber,
+            tabs: [
+                { id: 'itinerary', name: '行程', icon: 'fas fa-calendar-alt' },
+                { id: 'map', name: '地圖', icon: 'fas fa-map-marked-alt' },
+                { id: 'finance', name: '記帳', icon: 'fas fa-wallet' },
+                { id: 'parking', name: '泊車', icon: 'fas fa-parking' }
+            ],
+            locations: [
+                { name: 'San-A PARCO CITY', icon: 'fas fa-shopping-cart' },
+                { name: '美麗海水族館', icon: 'fas fa-fish' },
+                { name: 'JUNGLIA', icon: 'fas fa-tree' },
+                { name: '山原高山索道', icon: 'fas fa-mountain' }
+            ],
+            parkingInfo: [
+                { place: 'PARCO CITY', status: '免費 4000 台', fee: '免費' },
+                { place: '美麗海水族館 P7', status: '最靠近入口', fee: '免費' },
+                { place: '波上宮旁', status: '位置較窄，易滿', fee: '¥500/hr' },
+                { place: '泊港魚市場', status: '平面寬敞', fee: '免費' }
+            ]
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>
